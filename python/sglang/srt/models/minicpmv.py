@@ -1319,4 +1319,4 @@ class MiniCPMV:
                 weight_loader(param, loaded_weight)
 
 
-EntryClass = MiniCPMV
+EntryClass = (MiniCPMV, "MiniCPMV")

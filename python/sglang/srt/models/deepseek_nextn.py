@@ -305,4 +305,4 @@ class DeepseekV3ForCausalLMNextN(DeepseekV3ForCausalLM):
                     self_attn.w_scale *= 2.0
 
 
-EntryClass = [DeepseekV3ForCausalLMNextN]
+EntryClass = [(DeepseekV3ForCausalLMNextN, "DeepSeek 3")]

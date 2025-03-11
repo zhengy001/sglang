@@ -48,7 +48,8 @@ import requests
 import torch
 import torch.distributed
 import torch.distributed as dist
-import triton
+
+# import triton
 import zmq
 from fastapi.responses import ORJSONResponse
 from packaging import version as pkg_version

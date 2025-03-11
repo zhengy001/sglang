@@ -1,3 +1,4 @@
+import argparse
 import importlib
 import os
 import pkgutil
@@ -5,7 +6,7 @@ import subprocess
 import sys
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, List, Set
 
 warnings.filterwarnings("ignore")
 
@@ -19,14 +20,21 @@ EXCLUDE_MODELS = {
 DOC = "docs/references/supported_models.md"
 
 
-def get_edited_model_files() -> set[str]:
+def filter_files(filenames: List[str]) -> List[str]:
+    files = set()
+    for file in filenames:
+        if file.startswith("python/sglang/srt/models"):
+            # remove ".py"
+            file = file[:-3].replace("/", ".")
+            if file not in EXCLUDE_MODELS:
+                files.add(file[:-3].replace("/", "."))
+    return files
+
+
+def get_edited_model_files() -> Set[str]:
     cmd = ("git", "diff", "--staged", "--name-only", "--raw")
     all_files = cmd_output(*cmd).splitlines()
-    model_files = set()
-    for file in all_files:
-        if file.startswith("python/sglang/srt/models"):
-            model_files.add(file[:-3].replace("/", "."))
-    return model_files
+    return filter_files(all_files)
 
 
 def cmd_output(*cmd: str, retcode: int | None = 0, **kwargs: Any) -> str:
@@ -40,42 +48,40 @@ def cmd_output(*cmd: str, retcode: int | None = 0, **kwargs: Any) -> str:
     return stdout
 
 
-def get_supported_models_in_package() -> set[str]:
+def get_supported_models_in_package(filenames: List[str] = None) -> set[str]:
     model_names = set()
-    edited_model_files = get_edited_model_files()
-    if edited_model_files:
-        package_name = "python.sglang.srt.models"
-        package = importlib.import_module(package_name)
+    if filenames:
+        model_files = filter_files(filenames)
+    else:
+        model_files = get_edited_model_files()
+    print(model_files)
 
-        for _, name, ispkg in pkgutil.iter_modules(
-            package.__path__, package_name + "."
-        ):
-            if not ispkg:
-                if name in EXCLUDE_MODELS or name not in edited_model_files:
-                    continue
-                try:
-                    module = importlib.import_module(name)
-                except Exception as e:
-                    continue
-                if hasattr(module, "EntryClass"):
-                    entry = module.EntryClass
-                    if isinstance(entry, list):
-                        for tmp in entry:
-                            assert isinstance(
-                                tmp, tuple
-                            ), f"Please add model name for EntryClass {tmp}"
-                            model_names.add(tmp[1])
-                    else:
-                        assert isinstance(
-                            entry, tuple
-                        ), f"Please add model name for EntryClass {entry}"
-                        model_names.add(entry[1])
+    for name in model_files:
+        # package_name = "python.sglang.srt.models"
+        try:
+            module = importlib.import_module(name)
+        except Exception as e:
+            print(e)
+            continue
+        if hasattr(module, "EntryClass"):
+            entry = module.EntryClass
+            if isinstance(entry, list):
+                for tmp in entry:
+                    assert isinstance(
+                        tmp, tuple
+                    ), f"Please add model name for EntryClass {tmp}"
+                    model_names.add(tmp[1])
+            else:
+                assert isinstance(
+                    entry, tuple
+                ), f"Please add model name for EntryClass {entry}"
+                model_names.add(entry[1])
 
     return model_names
 
 
 def format(model_name: str) -> str:
-    """Handle special format int doc"""
+    """Handle special format in doc"""
     model_name = model_name.strip()
     if model_name.startswith("llava 1.5"):
         return "llava"
@@ -113,8 +119,16 @@ def check_if_doc_update_to_date(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    models_in_pkg = get_supported_models_in_package()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filenames", nargs="*", help="Filenames to check")
+    args = parser.parse_args(argv)
+
+    models_in_pkg = get_supported_models_in_package(args.filenames)
+    return 1
     models_in_doc = get_supported_models_in_doc()
+    print(models_in_pkg)
+    print(models_in_doc)
+    return 1
     return not check_if_doc_update_to_date(models_in_pkg, models_in_doc)
 
 
